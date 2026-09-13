@@ -175,6 +175,24 @@ def jats_to_markdown(xml_text: str, warnings: list[str]) -> str:
     return "\n\n".join(p for p in paras if p) + "\n"
 
 
+IMAGE_MAGIC = (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1", b"\xff\xd8\xff\xdb", b"\xff\xd8\xff\xee")
+
+
+def _fetch_figure_image(session: requests.Session, pmc: str, href: str, stem: Path) -> Path | None:
+    """One figure image from Europe PMC, trying the bare name and common
+    extensions. Any network failure means "not available", never a crash."""
+    for cand in (href, href + ".jpg", href + ".png"):
+        try:
+            r = session.get(f"https://europepmc.org/articles/{pmc}/bin/{cand}", timeout=20)
+        except requests.RequestException:
+            return None
+        if r.status_code == 200 and r.content[:4] in IMAGE_MAGIC:
+            out = stem.with_suffix(".png" if r.content[:4] == b"\x89PNG" else ".jpg")
+            out.write_bytes(r.content)
+            return out
+    return None
+
+
 def run_fetch_text(
     node: Node,
     contributor: str | None = None,
@@ -218,24 +236,6 @@ def run_fetch_text(
         xml_path = Path(tmp.name) / f"{e.key}.jats.xml"
         xml_path.write_text(xml_text, encoding="utf-8")
         figs = jats_figures(xml_text)
-        if images:
-            pmc = pmcid.upper() if pmcid.upper().startswith(("PMC", "PPR")) else "PMC" + pmcid
-            for fig in figs:
-                hrefs, fig.missing = fig.missing, []
-                for href in hrefs:
-                    got = False
-                    for cand in (href, href + ".jpg", href + ".png"):
-                        r = session.get(f"https://europepmc.org/articles/{pmc}/bin/{cand}", timeout=60)
-                        if r.status_code == 200 and r.content[:4] in (b"\x89PNG", b"\xff\xd8\xff\xe0", b"\xff\xd8\xff\xe1", b"\xff\xd8\xff\xdb"):
-                            ext = ".png" if r.content[:4] == b"\x89PNG" else ".jpg"
-                            out = Path(tmp.name) / f"{fig.id}{ext}"
-                            out.write_bytes(r.content)
-                            fig.files.append(out)
-                            got = True
-                            break
-                    if not got:
-                        fig.missing.append(href)
-                        warnings.append(f"{fig.id}: image {href} not available from Europe PMC")
         ing = Ingested(
             format="jats",
             source=xml_path,
@@ -248,13 +248,27 @@ def run_fetch_text(
         )
         st = stamp(contributor or e.get("contributor") or "unknown")
         try:
+            # Text first: it is the point, and image downloads are the part that fails.
             write_text(node, e.key, ing, st, e.get("status") or "published")
+            if images:
+                pmc = pmcid.upper() if pmcid.upper().startswith(("PMC", "PPR")) else "PMC" + pmcid
+                for fig in figs:
+                    hrefs, fig.missing = fig.missing, []
+                    for href in hrefs:
+                        got = _fetch_figure_image(session, pmc, href, Path(tmp.name) / fig.id)
+                        if got:
+                            fig.files.append(got)
+                        else:
+                            fig.missing.append(href)
+                            warnings.append(f"{fig.id}: image {href} not available from Europe PMC")
             if figs:
                 materialize(node, e.key, figs, st, None, warnings)
         finally:
             ing.cleanup()
         written.append(e.key)
         all_warnings.extend(f"{e.key}: {w}" for w in warnings)
+        if looked_up:
+            node.save_bib(entries)  # keep the ids found so far even if a later entry fails
         time.sleep(delay)
     if looked_up:
         node.save_bib(entries)
