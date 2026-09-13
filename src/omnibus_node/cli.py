@@ -59,6 +59,7 @@ def cmd_ingest(a: argparse.Namespace) -> int:
         title=a.title,
         render=not a.no_render,
         keep_source=a.keep_source,
+        extract_images=a.extract_images,
     )
     _report(result, a.json)
     return 0
@@ -194,6 +195,11 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument("--title")
     s.add_argument("--no-render", action="store_true", help="do not render LaTeX/DocX to a PDF for corpus")
     s.add_argument("--keep-source", action="store_true", help="copy the source files under sources/<key>/src/")
+    s.add_argument(
+        "--extract-images",
+        action="store_true",
+        help="PDF only: also pull embedded raster images out as figures (exact copies of published figures; off by default)",
+    )
     s.add_argument("--json", action="store_true")
     s.set_defaults(func=cmd_ingest)
 

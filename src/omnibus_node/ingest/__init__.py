@@ -37,7 +37,7 @@ def detect_format(path: Path) -> str:
     return fmt
 
 
-def read_source(path: Path) -> Ingested:
+def read_source(path: Path, extract_images: bool = False) -> Ingested:
     fmt = detect_format(path)
     if fmt == "latex":
         from .latex import ingest_latex
@@ -50,7 +50,7 @@ def read_source(path: Path) -> Ingested:
     if fmt == "pdf":
         from .pdf import ingest_pdf
 
-        return ingest_pdf(path)
+        return ingest_pdf(path, extract_images=extract_images)
     from .text import ingest_text
 
     return ingest_text(path)
@@ -71,6 +71,7 @@ def run_ingest(
     title: str | None = None,
     render: bool = True,
     keep_source: bool = False,
+    extract_images: bool = False,
 ) -> dict:
     path = Path(path).resolve()
     if not path.is_file():
@@ -82,7 +83,7 @@ def run_ingest(
     if derived and path.stem.lower() in _GENERIC_STEMS:
         warnings.append(f"key {key!r} was derived from a generic filename; pass --key Surname2024")
     st = stamp(contributor)
-    ing = read_source(path)
+    ing = read_source(path, extract_images=extract_images)
     try:
         if title:
             ing.title = title

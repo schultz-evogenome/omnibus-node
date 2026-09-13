@@ -66,7 +66,11 @@ def _image_list(path: Path) -> list[dict]:
     return rows
 
 
-def ingest_pdf(path: Path) -> Ingested:
+def ingest_pdf(path: Path, extract_images: bool = False) -> Ingested:
+    """Text from the PDF; legends from the text. Images are extracted only
+    on request: an image pulled from a publisher's file is an exact copy of
+    a published figure, and a node should publish figures from the lab's
+    own files (``figures.yaml``) rather than from publishers'."""
     path = Path(path)
     warnings: list[str] = []
     text = pdf_text(path)
@@ -76,7 +80,7 @@ def ingest_pdf(path: Path) -> Ingested:
         title = None
     tmp = tempfile.TemporaryDirectory(prefix="omnibus-pdf-")
     figures: list[Figure] = []
-    rows = [r for r in _image_list(path) if r["type"] == "image" and r["width"] >= MIN_WIDTH and r["height"] >= MIN_HEIGHT]
+    rows = [r for r in _image_list(path) if r["type"] == "image" and r["width"] >= MIN_WIDTH and r["height"] >= MIN_HEIGHT] if extract_images else []
     if rows:
         exe = tools.find("pdfimages")
         prefix = Path(tmp.name) / "img"
@@ -93,8 +97,13 @@ def ingest_pdf(path: Path) -> Ingested:
             else:
                 fig.missing.append(f.name)
             figures.append(fig)
-    elif not tools.find("pdfimages"):
+    elif extract_images and not tools.find("pdfimages"):
         warnings.append("pdfimages (poppler) is not installed; no figures were extracted")
+    if not extract_images:
+        # Legends still become caption-only records, so a later figures.yaml
+        # can take them by number.
+        for n, (number, caption) in enumerate(captions_from_text(text).items(), start=1):
+            figures.append(Figure(id=f"fig{n}", caption=caption, number=number, caption_confidence="medium"))
     pair_captions(figures, captions_from_text(text))
     extras: dict = {}
     if info.get("Pages"):
