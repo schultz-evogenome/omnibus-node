@@ -1,0 +1,56 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "omnibus-node"
+description = "Turn manuscript sources and figure folders into a Corpus-ready library with sharing tiers, and serve the layers Corpus does not hold over MCP"
+readme = "README.md"
+# 3.10 is what a lab laptop tends to have; corpus itself wants 3.12 on the
+# cluster. The tool has to run in both places.
+requires-python = ">=3.10"
+license = "MIT"
+authors = [{ name = "Darrin T. Schultz" }]
+dynamic = ["version"]
+
+# The same choices corpus makes: pydantic for validated config, pyyaml,
+# requests, and the official MCP SDK. mcp 2.0 renamed FastMCP to MCPServer,
+# so the range excludes 1.x; it is not pinned exactly because this package
+# has no CI env cache to go stale (see corpus #156, #158 for why they pin).
+dependencies = [
+    "pyyaml",
+    "pydantic>=2",
+    "requests",
+    "mcp>=2,<3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "ruff",
+]
+
+[project.urls]
+Homepage = "https://github.com/schultz-evogenome/omnibus-node"
+Issues = "https://github.com/schultz-evogenome/omnibus-node/issues"
+
+[project.scripts]
+omnibus-node = "omnibus_node.cli:main"
+
+[tool.setuptools.dynamic]
+version = { attr = "omnibus_node.__version__" }
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+omnibus_node = ["templates/*"]
+
+[tool.ruff]
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["F"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+title: "omnibus-node: manuscript sources and figure folders into a corpus-ready library with sharing tiers"
+message: "If you use this software, please cite it, and cite corpus, which it builds on."
+type: software
+authors:
+  - family-names: Schultz
+    given-names: Darrin T.
+    orcid: "https://orcid.org/0000-0003-1190-1122"
+version: 0.1.0
+date-released: "2026-09-13"
+url: "https://github.com/schultz-evogenome/omnibus-node"
+repository-code: "https://github.com/schultz-evogenome/omnibus-node"
+license: MIT
+references:
+  - type: software
+    title: "Extracting AI agent-accessible data from biodiversity literature with corpus"
+    authors:
+      - family-names: Church
+        given-names: Samuel H.
+      - family-names: Mańko
+        given-names: Maciej K.
+      - family-names: Zapata
+        given-names: Felipe
+      - family-names: Dunn
+        given-names: Casey W.
+    doi: 10.5281/zenodo.19964909
+    url: "https://github.com/caseywdunn/corpus"

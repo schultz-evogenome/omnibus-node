@@ -1,0 +1,23 @@
+# corpus project config for the {{name}} node.
+#
+# `corpus run` in this directory builds a corpuscle from library/ using the
+# metadata in references.bib. Everything else the node keeps (sources/,
+# assets/, notes/) is served by `omnibus-node serve`, not by corpus.
+#
+# The full template with every tuning block is `corpus init`; only the
+# per-corpuscle inputs are set here. Relative paths resolve against this file.
+
+input_pdfs: ./library
+output_dir: ./output
+bib: ./references.bib
+
+# Uncomment to tag terms in captions and chunks (see corpus's demo/lexicon.yaml).
+# lexicon: ./lexicon.yaml
+
+# Uncomment to link species mentions through a Darwin Core synonymy graph.
+# taxonomy:
+#   source: dwca
+#   path: ./taxonomy.dwca.zip
+
+figures:
+  panel_detection: ocr

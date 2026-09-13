@@ -1,0 +1,10 @@
+# PDFs are held locally and never committed: the node publishes text, not files.
+library/*
+!library/.gitkeep
+
+# corpus build output and the generated served view
+output/
+export/
+
+.DS_Store
+__pycache__/
