@@ -4,7 +4,7 @@ The software a lab runs to be a node in [Omnibus](https://github.com/schultz-evo
 
 It turns manuscript sources (LaTeX, DocX, plain text, Markdown, PDF) and
 figure folders into a library that [corpus](https://github.com/caseywdunn/corpus)
-can build a corpuscle from, keeps the layers corpus does not hold (figure
+can build from, keeps the layers corpus does not hold (figure
 assets, notes, dead ends), records who added each thing and when, and serves
 what each contributor chose to share over the Model Context Protocol (MCP).
 
@@ -166,7 +166,7 @@ and `refresh`. For Claude Code, a project `.mcp.json`:
 For a network endpoint: `omnibus-node serve --transport streamable-http --host 0.0.0.0 --port 8765`,
 behind whatever authentication the lab already uses (Tailscale, a reverse proxy).
 
-## Building the corpuscle
+## Building with corpus
 
 The node directory is a corpus project root. When there are enough PDFs in
 `library/` to justify it, on a machine with corpus installed:

@@ -14,7 +14,7 @@ item; the most specific setting wins.
 Two things sit outside the tiers. The PDFs in ``library/`` are never served
 or exported, whatever the tier: the node publishes the authors' text, not
 the publisher's file. And corpus's per-entry ``serve = {false}`` removes a
-work entirely, as it does in a corpuscle.
+work entirely, as it does in a Corpus build.
 """
 
 from __future__ import annotations

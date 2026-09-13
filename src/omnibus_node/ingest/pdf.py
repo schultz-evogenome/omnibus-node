@@ -1,6 +1,6 @@
 """PDFs, with poppler. Text comes from ``pdftotext``; raster figures from
 ``pdfimages`` (vector figures cannot be pulled from a PDF this way, and
-corpus does the real figure extraction when it builds the corpuscle).
+corpus does the real figure extraction when it builds its bundle).
 Legends are paired to images in order, so their confidence is low."""
 
 from __future__ import annotations

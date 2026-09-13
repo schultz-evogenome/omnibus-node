@@ -7,13 +7,14 @@ Orientation for AI coding agents working in this repository.
 omnibus-node is the lab-side half of Omnibus (see
 github.com/schultz-evogenome/omnibus, `docs/omnibus-design.md`). It builds
 on corpus (github.com/caseywdunn/corpus) and does not duplicate it. corpus
-turns PDFs into a corpuscle; this package turns manuscript sources and figure
+turns PDFs into a searchable bundle; this package turns manuscript sources and figure
 folders into the library corpus reads, keeps the layers corpus does not hold,
 and serves them under sharing tiers.
 
 ## Rules
 
-- Use corpus's vocabulary: library (PDFs plus a `.bib`), corpuscle, bundle,
+- The whole thing a lab runs is a node. Where corpus's vocabulary applies,
+  use it: library (PDFs plus a `.bib`), bundle,
   `bundle_info`, output profiles `report` / `manuscript` / `presentation`,
   clearance states in `rights.py`. Tool and field names match corpus where
   the two overlap.

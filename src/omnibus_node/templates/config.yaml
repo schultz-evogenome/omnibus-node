@@ -1,11 +1,11 @@
 # corpus project config for the {{name}} node.
 #
-# `corpus run` in this directory builds a corpuscle from library/ using the
+# `corpus run` in this directory builds its bundle from library/ using the
 # metadata in references.bib. Everything else the node keeps (sources/,
 # assets/, notes/) is served by `omnibus-node serve`, not by corpus.
 #
 # The full template with every tuning block is `corpus init`; only the
-# per-corpuscle inputs are set here. Relative paths resolve against this file.
+# per-project inputs are set here. Relative paths resolve against this file.
 
 input_pdfs: ./library
 output_dir: ./output

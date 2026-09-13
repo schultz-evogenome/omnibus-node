@@ -4,7 +4,7 @@ Read tools cover what corpus does not hold (texts, figure previews and
 assets, notes) at each work's sharing tier; ``record_dead_end`` is the write
 path. Figure tools take corpus's ``profile`` argument and apply the same
 licensing gate (rights.py). Tool and field names follow corpus where the
-two overlap so a client can treat a node and a corpuscle alike.
+two overlap so a client can treat a node and a Corpus server alike.
 """
 
 from __future__ import annotations
