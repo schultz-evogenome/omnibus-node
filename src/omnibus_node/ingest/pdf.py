@@ -108,9 +108,11 @@ def ingest_pdf(path: Path, extract_images: bool = False) -> Ingested:
     extras: dict = {}
     if info.get("Pages"):
         extras["pages"] = int(info["Pages"]) if info["Pages"].isdigit() else info["Pages"]
-    if figures:
+    if rows:
         warnings.append(
-            f"{len(figures)} raster image(s) taken from the PDF; captions were paired by order. "
+            f"{len(rows)} raster image(s) taken from the PDF; captions were paired by order. "
             "Vector figures are not extractable this way; corpus extracts figures properly at build time."
         )
+    elif figures:
+        warnings.append(f"{len(figures)} figure legend(s) recorded from the text; no images were taken from the PDF")
     return Ingested(format="pdf", source=path, text=text, title=title, figures=figures, extras=extras, warnings=warnings, tmp=tmp)
