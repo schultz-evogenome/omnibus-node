@@ -35,11 +35,15 @@ from .provenance import sha256_file, stamp
 class FigureSpec(BaseModel):
     model_config = ConfigDict(extra="forbid")
     id: str
-    original: str | list[str]
+    original: str | list[str] | None = None  # none for a data-only entry (a table, supplementary data)
     caption: str | None = None
     caption_from_text: str | int | None = None
     data: list[str] = Field(default_factory=list)
     scripts: list[str] = Field(default_factory=list)
+    # Files too large for the repository (a 170 MB Illustrator original):
+    # recorded with size and checksum, never copied. The org keeps large
+    # data out of git and carries checksums instead.
+    offline: list[str] = Field(default_factory=list)
     notes: str | None = None
 
 
@@ -105,7 +109,7 @@ def run_assets(node: Node, spec_path: str | Path, contributor: str) -> dict:
         if fig.notes:
             rec["notes"] = fig.notes
         files: list[dict] = []
-        originals = [fig.original] if isinstance(fig.original, str) else list(fig.original)
+        originals = [] if fig.original is None else ([fig.original] if isinstance(fig.original, str) else list(fig.original))
         missing: list[str] = []
         for n, name in enumerate(originals):
             src = base / name
@@ -133,6 +137,16 @@ def run_assets(node: Node, spec_path: str | Path, contributor: str) -> dict:
                 files.append(_copy(src, dest, role, "assets", base))
         for f in files:
             f["path"] = str(Path(f["path"]).relative_to(adir))
+        found, miss = _expand(fig.offline, base)
+        missing.extend(miss)
+        for src in found:
+            try:
+                origin = str(src.resolve().relative_to(base))
+            except ValueError:
+                origin = src.name
+            files.append(
+                {"from": origin, "role": "original", "tier": "assets", "stored": False, "bytes": src.stat().st_size, "sha256": sha256_file(src)}
+            )
         rec["files"] = files
         if missing:
             rec["missing"] = missing

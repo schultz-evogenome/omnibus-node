@@ -23,11 +23,26 @@ IMAGE_EXTS = RASTER | POPPLER_RENDERS | OTHER_IMAGE
 # "Figure 3." / "Fig. S2 |" / "**Extended Data Fig. 1.**" at the start of a paragraph.
 CAPTION_RE = re.compile(
     r"^\s*(?:\*\*|__)?\s*"
-    r"(?:(?:Supplementary|Supplemental|Extended\s+Data)\s+)?"
+    r"((?:Supplementary|Supplemental|Extended\s+Data)\s+)?"
     r"(?:Fig(?:ure)?|FIG(?:URE)?)\.?\s*"
     r"(S?\d+)\s*[.:|]?\s*(?:\*\*|__)?\s*(.*)",
     re.S,
 )
+
+
+def figure_number(label: str) -> str | None:
+    """A figure key from a label: ``Fig. 3`` -> ``3``, ``Fig. S2`` -> ``S2``,
+    ``Extended Data Fig. 1`` -> ``ED1``, ``Supplementary Figure 4`` -> ``S4``."""
+    m = re.search(r"(Supplementary|Supplemental|Extended\s+Data)?\s*(?:Fig(?:ure)?|FIG(?:URE)?)\.?\s*(S?\d+)", label or "", re.I)
+    if not m:
+        m2 = re.search(r"(S?\d+)", label or "")
+        return m2.group(1) if m2 else None
+    prefix, num = (m.group(1) or "").lower(), m.group(2).upper()
+    if prefix.startswith("extended"):
+        return "ED" + num.lstrip("S")
+    if prefix.startswith("supplement") and not num.startswith("S"):
+        return "S" + num
+    return num
 
 
 @dataclass
@@ -68,9 +83,13 @@ def caption_match(paragraph: str) -> tuple[str, str] | None:
     m = CAPTION_RE.match(paragraph)
     if not m:
         return None
-    number, body = m.group(1), m.group(2).strip()
+    prefix, number, body = (m.group(1) or "").lower(), m.group(2).upper(), m.group(3).strip()
     if len(body) < 8:
         return None
+    if prefix.startswith("extended"):
+        number = "ED" + number.lstrip("S")
+    elif prefix.startswith("supplement") and not number.startswith("S"):
+        number = "S" + number
     return number, " ".join(body.split())
 
 

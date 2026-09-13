@@ -78,8 +78,12 @@ def plan(node: Node, cap: str = "all") -> tuple[list[WorkPlan], list[dict], bool
         if ay.exists():
             doc = yaml.safe_load(ay.read_text(encoding="utf-8")) or {}
             for fig in doc.get("figures", []):
-                files = [f for f in fig.get("files", []) if sharing.allows(tier, "figure_assets" if f.get("tier") == "assets" else "previews")]
-                wp.excluded_files += len(fig.get("files", [])) - len(files)
+                stored = [f for f in fig.get("files", []) if f.get("path")]
+                files = [f for f in stored if sharing.allows(tier, "figure_assets" if f.get("tier") == "assets" else "previews")]
+                wp.excluded_files += len(stored) - len(files)
+                if sharing.allows(tier, "figure_assets"):
+                    # Offline originals: checksum and size are served, the file is not.
+                    files += [f for f in fig.get("files", []) if not f.get("path")]
                 rec = {k: v for k, v in fig.items() if k != "files"}
                 rec["files"] = files
                 wp.figures.append(rec)
@@ -124,6 +128,8 @@ def run_export(node: Node, out: str | Path | None = None, cap: str = "all") -> d
             adir.mkdir()
             for fig in wp.figures:
                 for f in fig["files"]:
+                    if not f.get("path"):
+                        continue
                     src = node.assets / wp.key / f["path"]
                     dest = adir / f["path"]
                     dest.parent.mkdir(parents=True, exist_ok=True)

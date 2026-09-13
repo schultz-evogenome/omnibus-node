@@ -70,7 +70,7 @@ def run_check(node: Node) -> dict:
                 continue
             for fig in doc.get("figures", []):
                 for f in fig.get("files", []):
-                    if not (ay.parent / f["path"]).exists():
+                    if f.get("path") and not (ay.parent / f["path"]).exists():
                         errors.append(f"{ay.parent.name}/{fig.get('id')}: listed file {f['path']} is missing")
                 if fig.get("missing"):
                     warnings.append(f"{ay.parent.name}/{fig.get('id')}: {len(fig['missing'])} source file(s) were not found at ingest")

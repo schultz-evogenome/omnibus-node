@@ -177,7 +177,7 @@ def build_server(node: Node, default_profile: str = "report") -> MCPServer:
         fig = next((f for f in w.figures if f["id"] == figure_id), None)
         if fig is None:
             return {"error": f"{key} has no figure {figure_id}", "code": "not_found"}
-        rec = next((f for f in fig["files"] if f["path"] == path), None)
+        rec = next((f for f in fig["files"] if f.get("path") == path), None)
         if rec is None:
             return {"error": f"{path} is not servable for {figure_id} at tier {w.tier}", "code": "not_available"}
         full = (node.assets / key / path).resolve()

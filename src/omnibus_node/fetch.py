@@ -13,7 +13,6 @@ of the open-access version, which is what the node publishes.
 
 from __future__ import annotations
 
-import re
 import tempfile
 import time
 from pathlib import Path
@@ -22,9 +21,9 @@ from xml.etree import ElementTree as ET
 import requests
 
 from . import __version__, tools
-from .ingest.common import Figure, Ingested, materialize, write_text
+from .ingest.common import Figure, Ingested, figure_number, materialize, write_text
 from .node import Node
-from .provenance import sha256_file, stamp
+from .provenance import sha256_file, stamp, today
 
 UA = f"omnibus-node/{__version__} (+https://github.com/schultz-evogenome/omnibus-node)"
 EUROPEPMC = "https://www.ebi.ac.uk/europepmc/webservices/rest"
@@ -102,6 +101,25 @@ def run_fetch(node: Node, keys: list[str] | None = None, force: bool = False, de
 # --- Europe PMC full text --------------------------------------------------
 
 
+def lookup_pmcid(session: requests.Session, doi: str) -> str | None:
+    """Europe PMC's search resolves a DOI to a PMC id when the article is
+    in PubMed Central; OpenAlex often lacks the id."""
+    try:
+        r = session.get(f"{EUROPEPMC}/search", params={"query": f'DOI:"{doi}"', "format": "json", "pageSize": 5}, timeout=60)
+    except requests.RequestException:
+        return None
+    if r.status_code != 200:
+        return None
+    try:
+        hits = r.json().get("resultList", {}).get("result", [])
+    except ValueError:
+        return None
+    for hit in hits:
+        if hit.get("pmcid"):
+            return hit["pmcid"]
+    return None
+
+
 def europepmc_xml(session: requests.Session, pmcid: str) -> str | None:
     pmcid = pmcid.upper()
     if not pmcid.startswith("PMC"):
@@ -125,8 +143,7 @@ def jats_figures(xml_text: str) -> list[Figure]:
     for n, fig in enumerate(root.iter("fig"), start=1):
         label = _text_of(fig.find("label"))
         caption = _text_of(fig.find("caption"))
-        m = re.search(r"(S?\d+)", label or "")
-        number = m.group(1) if m else str(n)
+        number = figure_number(label) or str(n)
         f = Figure(id=f"fig{n}", caption=caption, number=number, label=label or None)
         f.caption_confidence = "high" if caption else "low"
         for g in fig.iter("graphic"):
@@ -168,10 +185,18 @@ def run_fetch_text(
     skipped: list[str] = []
     failed: list[dict] = []
     all_warnings: list[str] = []
+    looked_up = 0
     for e in entries:
         if keys and e.key not in keys:
             continue
         pmcid = e.get("pmcid")
+        if not pmcid and e.get("doi") and not e.get("pmcidchecked"):
+            pmcid = lookup_pmcid(session, e.get("doi"))
+            e.set("pmcidchecked", today())
+            if pmcid:
+                e.set("pmcid", pmcid)
+            looked_up += 1
+            time.sleep(delay / 2)
         if not pmcid:
             skipped.append(e.key)
             continue
@@ -227,4 +252,12 @@ def run_fetch_text(
         written.append(e.key)
         all_warnings.extend(f"{e.key}: {w}" for w in warnings)
         time.sleep(delay)
-    return {"written": written, "skipped_no_pmcid_or_existing": len(skipped), "failed": failed, "warnings": all_warnings}
+    if looked_up:
+        node.save_bib(entries)
+    return {
+        "written": written,
+        "pmcids_looked_up": looked_up,
+        "skipped_no_pmcid_or_existing": len(skipped),
+        "failed": failed,
+        "warnings": all_warnings,
+    }
