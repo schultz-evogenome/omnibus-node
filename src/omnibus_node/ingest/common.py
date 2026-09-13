@@ -14,6 +14,51 @@ import yaml
 from .. import tools
 from ..node import Node
 from ..provenance import sha256_file
+from ..rights import attribution, clearance
+
+# Licence statements name the licence more often than they link it.
+_LICENSE_URL_RE = re.compile(r"creativecommons\.org/(licenses|publicdomain)/([a-z\-]+)/(\d\.\d)", re.I)
+_LICENSE_NAMES = (
+    ("attribution-noncommercial-noderiv", "CC-BY-NC-ND"),
+    ("attribution-noncommercial-sharealike", "CC-BY-NC-SA"),
+    ("attribution-noncommercial", "CC-BY-NC"),
+    ("attribution-noderiv", "CC-BY-ND"),
+    ("attribution-sharealike", "CC-BY-SA"),
+    ("attribution", "CC-BY"),
+    ("cc0", "CC0-1.0"),
+    ("public domain", "public-domain"),
+)
+
+
+def license_from_statement(url: str | None, text: str | None) -> str | None:
+    """An SPDX-style identifier from a licence URL or its wording, or None."""
+    for candidate in (url or "", text or ""):
+        m = _LICENSE_URL_RE.search(candidate)
+        if m:
+            if m.group(1).lower() == "publicdomain":
+                return "CC0-1.0" if "zero" in candidate.lower() else "public-domain"
+            return f"CC-{m.group(2).upper()}-{m.group(3)}"
+    t = " ".join((text or "").lower().replace("–", "-").split())
+    t = t.replace("attribution-non-commercial", "attribution-noncommercial").replace("no derivatives", "noderiv").replace("nonderivative", "noderiv")
+    for name, spdx in _LICENSE_NAMES:
+        if name in t:
+            m = re.search(r"(\d\.\d)", t)
+            return spdx if spdx in ("CC0-1.0", "public-domain") or not m else f"{spdx}-{m.group(1)}"
+    return None
+
+
+def license_fields(entry) -> dict:
+    """What a served text must say about its rights: licence, copyright line,
+    attribution, and the clearance state. From the bib entry."""
+    if entry is None:
+        return {"publication_clearance": "no_record"}
+    out: dict = {}
+    for src, dest in (("license", "license"), ("licenseurl", "license_url"), ("licensestatement", "license_statement"), ("copyright", "copyright"), ("licensesource", "license_source"), ("textsource", "text_source")):
+        if entry.get(src):
+            out[dest] = entry.get(src)
+    out["publication_clearance"] = clearance(entry.get("license"), entry.get("year"))
+    out["attribution"] = attribution(entry.fields)
+    return out
 
 RASTER = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
 POPPLER_RENDERS = {".pdf", ".ai"}  # Illustrator files are PDF-compatible
@@ -239,9 +284,11 @@ def write_text(node: Node, key: str, ing: Ingested, stamp: dict[str, str], statu
         }
     )
     front.update(stamp)
+    front.update(license_fields(node.entry(key)))
+    front["conversion"] = f"converted to Markdown from {ing.format} by omnibus-node; may differ from the version of record"
     if ing.figures:
         front["figures"] = [f.id for f in ing.figures]
-    for k in ("abstract", "pages", "bibfile"):
+    for k in ("abstract", "pages", "bibfile", "source_url"):
         if ing.extras.get(k):
             front[k] = ing.extras[k]
     body = ing.text.strip() + "\n"
@@ -249,6 +296,26 @@ def write_text(node: Node, key: str, ing: Ingested, stamp: dict[str, str], statu
     dest = sdir / "text.md"
     dest.write_text(text, encoding="utf-8")
     return dest
+
+
+def text_withheld_reason(node: Node, entry, front: dict | None) -> str | None:
+    """Why a text must not leave the node, or None.
+
+    Text taken from a publisher's PDF is the publisher's version. It is
+    served only when the work carries an open licence, or when the entry
+    says the file was the authors' own version (``textsource = {author}``).
+    Text from Europe PMC states its licence itself and is always in the
+    open-access subset."""
+    if front is None or entry is None:
+        return None
+    if front.get("format") != "pdf":
+        return None
+    if (entry.get("textsource") or "").lower() in ("author", "authors", "accepted-manuscript"):
+        return None
+    state = clearance(entry.get("license"), entry.get("year"))
+    if state in ("no_record", "undetermined"):
+        return f"text came from a publisher PDF and the work has no open licence on record ({state}); add the accepted manuscript and set textsource = {{author}}"
+    return None
 
 
 def read_text(node: Node, key: str) -> tuple[dict, str] | None:

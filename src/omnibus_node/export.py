@@ -17,6 +17,7 @@ from pathlib import Path
 import yaml
 
 from . import bibtex, sharing
+from .ingest.common import read_text, text_withheld_reason
 from .node import Node
 from .provenance import tool
 from .rights import clearance
@@ -34,6 +35,7 @@ class WorkPlan:
     entry: bibtex.Entry
     text: Path | None = None
     text_layer: str = "text"
+    text_withheld: str | None = None
     src_dir: Path | None = None
     note: Path | None = None
     figures: list[dict] = field(default_factory=list)  # asset records with servable files only
@@ -67,7 +69,10 @@ def plan(node: Node, cap: str = "all") -> tuple[list[WorkPlan], list[dict], bool
         wp.text_layer = "sources" if status == "draft" else "text"
         text = node.sources / e.key / "text.md"
         if text.exists() and sharing.allows(tier, wp.text_layer):
-            wp.text = text
+            got = read_text(node, e.key)
+            wp.text_withheld = text_withheld_reason(node, e, got[0] if got else None)
+            if not wp.text_withheld:
+                wp.text = text
         src = node.sources / e.key / "src"
         if src.is_dir() and sharing.allows(tier, "sources"):
             wp.src_dir = src
@@ -142,6 +147,8 @@ def run_export(node: Node, out: str | Path | None = None, cap: str = "all") -> d
             )
         if wp.excluded_files:
             rec["files_withheld_by_tier"] = wp.excluded_files
+        if wp.text_withheld:
+            rec["text_withheld"] = wp.text_withheld
         (wdir / "metadata.json").write_text(json.dumps(wp.metadata, indent=2, ensure_ascii=False), encoding="utf-8")
         e = bibtex.Entry(wp.entry.type, wp.key, {k: v for k, v in wp.entry.fields.items() if k not in ("oapdf", "oapdfalt", "sha256", "file")})
         bib_out.append(e)

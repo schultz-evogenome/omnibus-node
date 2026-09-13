@@ -7,6 +7,7 @@ import yaml
 from pydantic import ValidationError
 
 from . import sharing, tools
+from .ingest.common import read_text, text_withheld_reason
 from .node import CONFIG, Node
 
 
@@ -50,6 +51,11 @@ def run_check(node: Node) -> dict:
             warnings.append(f"{e.key}: missing contributor= or added= (who added it, and when)")
         if not e.get("license"):
             warnings.append(f"{e.key}: no license= recorded; figures will be reported as no_record")
+        got = read_text(node, e.key)
+        if got:
+            reason = text_withheld_reason(node, e, got[0])
+            if reason:
+                errors.append(f"{e.key}: sources/{e.key}/text.md must not be published: {reason}")
         if not e.get("year"):
             warnings.append(f"{e.key}: no year")
     listed = {e.get("file") for e in entries if e.get("file")}

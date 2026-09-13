@@ -160,6 +160,39 @@ def jats_figures(xml_text: str) -> list[Figure]:
     return figs
 
 
+def jats_permissions(xml_text: str) -> dict[str, str]:
+    """The licence and copyright the article states about itself, from
+    ``<permissions>``: an SPDX-style ``license``, its ``licenseurl``, the
+    ``licensestatement`` sentence, and the ``copyright`` line."""
+    from .ingest.common import license_from_statement
+
+    root = ET.fromstring(xml_text)
+    perm = root.find(".//permissions")
+    if perm is None:
+        return {}
+    out: dict[str, str] = {}
+    lic = perm.find("license")
+    if lic is not None:
+        url = lic.get(XLINK + "href") or ""
+        for el in lic.iter():
+            href = el.get(XLINK + "href")
+            if href and "creativecommons" in href:
+                url = href
+                break
+        statement = " ".join("".join(lic.itertext()).split())
+        spdx = license_from_statement(url, statement)
+        if spdx:
+            out["license"] = spdx
+        if url:
+            out["licenseurl"] = url
+        if statement:
+            out["licensestatement"] = statement[:300]
+    cp = perm.find("copyright-statement")
+    if cp is not None:
+        out["copyright"] = " ".join("".join(cp.itertext()).split())[:200]
+    return out
+
+
 def jats_to_markdown(xml_text: str, warnings: list[str]) -> str:
     exe = tools.find("pandoc")
     if exe:
@@ -210,6 +243,7 @@ def run_fetch_text(
     failed: list[dict] = []
     all_warnings: list[str] = []
     looked_up = 0
+    bib_changed = False
     for e in entries:
         if keys and e.key not in keys:
             continue
@@ -238,6 +272,16 @@ def run_fetch_text(
         xml_path = Path(tmp.name) / f"{e.key}.jats.xml"
         xml_path.write_text(xml_text, encoding="utf-8")
         figs = jats_figures(xml_text)
+        # The article's own licence statement outranks a catalogue's summary.
+        perm = jats_permissions(xml_text)
+        if perm:
+            if perm.get("license"):
+                e.set("license", perm["license"])
+                e.set("licensesource", "jats")
+            for k in ("licenseurl", "licensestatement", "copyright"):
+                if perm.get(k):
+                    e.set(k, perm[k])
+            bib_changed = True
         ing = Ingested(
             format="jats",
             source=xml_path,
@@ -249,6 +293,8 @@ def run_fetch_text(
             tmp=tmp,
         )
         st = stamp(contributor or e.get("contributor") or "unknown")
+        if bib_changed:
+            node.save_bib(entries)  # so write_text sees the licence just recorded
         try:
             # Text first: it is the point, and image downloads are the part that fails.
             write_text(node, e.key, ing, st, e.get("status") or "published")
@@ -269,10 +315,10 @@ def run_fetch_text(
             ing.cleanup()
         written.append(e.key)
         all_warnings.extend(f"{e.key}: {w}" for w in warnings)
-        if looked_up:
-            node.save_bib(entries)  # keep the ids found so far even if a later entry fails
+        if looked_up or bib_changed:
+            node.save_bib(entries)  # keep the ids and licences found so far even if a later entry fails
         time.sleep(delay)
-    if looked_up:
+    if looked_up or bib_changed:
         node.save_bib(entries)
     return {
         "written": written,
