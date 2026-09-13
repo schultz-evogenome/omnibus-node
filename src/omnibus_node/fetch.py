@@ -70,7 +70,9 @@ def run_fetch(node: Node, keys: list[str] | None = None, force: bool = False, de
                 e.set("sha256", sha256_file(dest))
             skipped.append(e.key)
             continue
-        urls = [u.strip() for u in [e.get("oapdf") or ""] + (e.get("oapdfalt") or "").split(";") if u.strip()]
+        # labpdf= is a copy the lab hosts itself (its own website); it comes
+        # first because it is the one download that never refuses a script.
+        urls = [u.strip() for u in [e.get("labpdf") or "", e.get("oapdf") or ""] + (e.get("oapdfalt") or "").split(";") if u.strip()]
         if not urls:
             skipped.append(e.key)
             continue

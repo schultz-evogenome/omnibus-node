@@ -203,12 +203,20 @@ def materialize(
     return write_asset_yaml(adir, key, stamp, records)
 
 
-def write_asset_yaml(adir: Path, key: str, stamp: dict[str, str], records: list[dict]) -> dict:
+def read_asset_yaml(adir: Path) -> dict:
     path = adir / "asset.yaml"
-    existing: dict = {}
-    if path.exists():
-        existing = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    by_id = {r["id"]: r for r in existing.get("figures", [])}
+    if not path.exists():
+        return {}
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
+def write_asset_yaml(adir: Path, key: str, stamp: dict[str, str], records: list[dict], drop_ids: set[str] | None = None) -> dict:
+    """Merge ``records`` into ``asset.yaml`` by figure id. ``drop_ids`` names
+    existing records that were folded into a new one (a caption-only record
+    from a full-text fetch, now joined with the lab's figure files)."""
+    path = adir / "asset.yaml"
+    existing = read_asset_yaml(adir)
+    by_id = {r["id"]: r for r in existing.get("figures", []) if r["id"] not in (drop_ids or set())}
     for r in records:
         by_id[r["id"]] = r
     doc = {"key": key, **stamp, "figures": list(by_id.values())}

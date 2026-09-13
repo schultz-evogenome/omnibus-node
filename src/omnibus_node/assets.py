@@ -27,7 +27,7 @@ from pathlib import Path
 import yaml
 from pydantic import BaseModel, ConfigDict, Field
 
-from .ingest.common import POPPLER_RENDERS, RASTER, captions_from_text, make_preview, read_text, write_asset_yaml
+from .ingest.common import POPPLER_RENDERS, RASTER, captions_from_text, make_preview, read_asset_yaml, read_text, write_asset_yaml
 from .node import Node
 from .provenance import sha256_file, stamp
 
@@ -94,18 +94,30 @@ def run_assets(node: Node, spec_path: str | Path, contributor: str) -> dict:
     txt = read_text(node, spec.key)
     if txt:
         legends = captions_from_text(txt[1])
+    # Caption-only records left by `fetch --text` (Europe PMC legends, no
+    # files), keyed by figure number. A spec figure with the same number
+    # takes the caption and replaces that record.
+    prior = {str(r.get("number")): r for r in read_asset_yaml(adir).get("figures", []) if r.get("number")}
+    consumed: set[str] = set()
     warnings: list[str] = []
     records: list[dict] = []
     for fig in spec.figures:
         rec: dict = {"id": fig.id, "caption": fig.caption or "", "caption_confidence": "high" if fig.caption else "low"}
         if fig.caption_from_text is not None:
             num = str(fig.caption_from_text)
-            if num in legends:
+            rec["number"] = num
+            if num in prior and prior[num].get("caption"):
+                rec["caption"] = prior[num]["caption"]
+                rec["caption_confidence"] = prior[num].get("caption_confidence", "high")
+                if prior[num].get("label"):
+                    rec["label"] = prior[num]["label"]
+                if prior[num]["id"] != fig.id and not any(f.get("path") for f in prior[num].get("files", [])):
+                    consumed.add(prior[num]["id"])
+            elif num in legends:
                 rec["caption"] = legends[num]
                 rec["caption_confidence"] = "medium"
-                rec["number"] = num
             else:
-                warnings.append(f"{fig.id}: no legend for figure {num} in sources/{spec.key}/text.md")
+                warnings.append(f"{fig.id}: no legend for figure {num} in sources/{spec.key}/text.md or assets/{spec.key}/asset.yaml")
         if fig.notes:
             rec["notes"] = fig.notes
         files: list[dict] = []
@@ -152,7 +164,7 @@ def run_assets(node: Node, spec_path: str | Path, contributor: str) -> dict:
             rec["missing"] = missing
             warnings.append(f"{fig.id}: not found: {', '.join(missing)}")
         records.append(rec)
-    doc = write_asset_yaml(adir, spec.key, st, records)
+    doc = write_asset_yaml(adir, spec.key, st, records, drop_ids=consumed)
     if node.entry(spec.key) is None:
         node.upsert_entry(spec.key, "misc", {"contributor": st["contributor"], "added": st["added"]})
         warnings.append(f"{spec.key} had no bib entry; a minimal one was created, add its metadata")
