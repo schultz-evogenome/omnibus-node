@@ -263,6 +263,19 @@ def write_asset_yaml(adir: Path, key: str, stamp: dict[str, str], records: list[
     existing = read_asset_yaml(adir)
     by_id = {r["id"]: r for r in existing.get("figures", []) if r["id"] not in (drop_ids or set())}
     for r in records:
+        old = by_id.get(r["id"])
+        if old and any(f.get("path") for f in old.get("files", [])) and not any(f.get("path") for f in r.get("files", [])):
+            # A caption-only record (a full-text refresh) must not discard the
+            # files a figures.yaml run already attached to this id.
+            merged = dict(old)
+            if r.get("caption"):
+                merged["caption"] = r["caption"]
+                merged["caption_confidence"] = r.get("caption_confidence", merged.get("caption_confidence"))
+            for k in ("label", "number"):
+                if r.get(k):
+                    merged[k] = r[k]
+            by_id[r["id"]] = merged
+            continue
         by_id[r["id"]] = r
     doc = {"key": key, **stamp, "figures": list(by_id.values())}
     path.write_text(yaml.safe_dump(doc, sort_keys=False, allow_unicode=True), encoding="utf-8")
