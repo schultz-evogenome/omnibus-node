@@ -102,8 +102,9 @@ def run_fetch(node: Node, keys: list[str] | None = None, force: bool = False, de
 
 
 def lookup_pmcid(session: requests.Session, doi: str) -> str | None:
-    """Europe PMC's search resolves a DOI to a PMC id when the article is
-    in PubMed Central; OpenAlex often lacks the id."""
+    """Europe PMC's search resolves a DOI to an id with full text: a PMC id
+    for an article in PubMed Central, or a PPR id for a preprint whose full
+    text Europe PMC holds. OpenAlex often lacks both."""
     try:
         r = session.get(f"{EUROPEPMC}/search", params={"query": f'DOI:"{doi}"', "format": "json", "pageSize": 5}, timeout=60)
     except requests.RequestException:
@@ -117,12 +118,15 @@ def lookup_pmcid(session: requests.Session, doi: str) -> str | None:
     for hit in hits:
         if hit.get("pmcid"):
             return hit["pmcid"]
+    for hit in hits:
+        if hit.get("source") == "PPR" and str(hit.get("hasFullTextXML", "")).upper() == "Y":
+            return hit.get("id")
     return None
 
 
 def europepmc_xml(session: requests.Session, pmcid: str) -> str | None:
     pmcid = pmcid.upper()
-    if not pmcid.startswith("PMC"):
+    if not pmcid.startswith(("PMC", "PPR")):
         pmcid = "PMC" + pmcid
     r = session.get(f"{EUROPEPMC}/{pmcid}/fullTextXML", timeout=90)
     if r.status_code != 200 or not r.text.lstrip().startswith("<"):
@@ -215,7 +219,7 @@ def run_fetch_text(
         xml_path.write_text(xml_text, encoding="utf-8")
         figs = jats_figures(xml_text)
         if images:
-            pmc = pmcid.upper() if pmcid.upper().startswith("PMC") else "PMC" + pmcid
+            pmc = pmcid.upper() if pmcid.upper().startswith(("PMC", "PPR")) else "PMC" + pmcid
             for fig in figs:
                 hrefs, fig.missing = fig.missing, []
                 for href in hrefs:
